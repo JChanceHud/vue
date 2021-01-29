@@ -55,7 +55,7 @@ export default class TemplateRenderer {
     this.inject = options.inject !== false
     // if no template option is provided, the renderer is created
     // as a utility object for rendering assets like preload links and scripts.
-    
+
     const { template } = options
     this.parsedTemplate = template
       ? typeof template === 'string'
@@ -97,6 +97,9 @@ export default class TemplateRenderer {
     const template = this.parsedTemplate
     if (!template) {
       throw new Error('render cannot be called without a template.')
+    }
+    if (typeof template === 'function') {
+      return template(content, context)
     }
     context = context || {}
 
