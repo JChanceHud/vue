@@ -467,7 +467,7 @@ var isBooleanAttr = makeMap(
   'default,defaultchecked,defaultmuted,defaultselected,defer,disabled,' +
   'enabled,formnovalidate,hidden,indeterminate,inert,ismap,itemscope,loop,multiple,' +
   'muted,nohref,noresize,noshade,novalidate,nowrap,open,pauseonexit,readonly,' +
-  'required,reversed,scoped,seamless,selected,sortable,translate,' +
+  'required,reversed,scoped,seamless,selected,sortable,' +
   'truespeed,typemustmatch,visible'
 );
 
@@ -637,7 +637,7 @@ function renderDOMProps (node) {
     } else if (key === 'textContent') {
       setText(node, props[key], false);
     } else if (key === 'value' && node.tag === 'textarea') {
-      setText(node, props[key], false);
+      setText(node, toString(props[key]), false);
     } else {
       // $flow-disable-line (WTF?)
       var attr = propsToAttrMap[key] || key.toLowerCase();
@@ -1931,18 +1931,19 @@ function getInvalidTypeMessage (name, value, expectedTypes) {
     " Expected " + (expectedTypes.map(capitalize).join(', '));
   var expectedType = expectedTypes[0];
   var receivedType = toRawType(value);
-  var expectedValue = styleValue(value, expectedType);
-  var receivedValue = styleValue(value, receivedType);
   // check if we need to specify expected value
-  if (expectedTypes.length === 1 &&
-      isExplicable(expectedType) &&
-      !isBoolean(expectedType, receivedType)) {
-    message += " with value " + expectedValue;
+  if (
+    expectedTypes.length === 1 &&
+    isExplicable(expectedType) &&
+    isExplicable(typeof value) &&
+    !isBoolean(expectedType, receivedType)
+  ) {
+    message += " with value " + (styleValue(value, expectedType));
   }
   message += ", got " + receivedType + " ";
   // check if we need to specify received value
   if (isExplicable(receivedType)) {
-    message += "with value " + receivedValue + ".";
+    message += "with value " + (styleValue(value, receivedType)) + ".";
   }
   return message
 }
@@ -1957,9 +1958,9 @@ function styleValue (value, type) {
   }
 }
 
+var EXPLICABLE_TYPES = ['string', 'number', 'boolean'];
 function isExplicable (value) {
-  var explicitTypes = ['string', 'number', 'boolean'];
-  return explicitTypes.some(function (elem) { return value.toLowerCase() === elem; })
+  return EXPLICABLE_TYPES.some(function (elem) { return value.toLowerCase() === elem; })
 }
 
 function isBoolean () {
@@ -3116,7 +3117,7 @@ var style = {
 
 // Regular Expressions for parsing tags and attributes
 var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
-var dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
+var dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+?\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
 var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z" + (unicodeRegExp.source) + "]*";
 var qnameCapture = "((?:" + ncname + "\\:)?" + ncname + ")";
 var startTagOpen = new RegExp(("^<" + qnameCapture));
@@ -4906,9 +4907,9 @@ function genHandler (handler) {
       code += genModifierCode;
     }
     var handlerCode = isMethodPath
-      ? ("return " + (handler.value) + "($event)")
+      ? ("return " + (handler.value) + ".apply(null, arguments)")
       : isFunctionExpression
-        ? ("return (" + (handler.value) + ")($event)")
+        ? ("return (" + (handler.value) + ").apply(null, arguments)")
         : isFunctionInvocation
           ? ("return " + (handler.value))
           : handler.value;
@@ -8167,8 +8168,10 @@ function createComponent (
 }
 
 function createComponentInstanceForVnode (
-  vnode, // we know it's MountedComponentVNode but flow doesn't
-  parent // activeInstance in lifecycle state
+  // we know it's MountedComponentVNode but flow doesn't
+  vnode,
+  // activeInstance in lifecycle state
+  parent
 ) {
   var options = {
     _isComponent: true,
@@ -8848,7 +8851,11 @@ function mapIdToFile (id, clientManifest) {
     fileIndices.forEach(function (index) {
       var file = clientManifest.all[index];
       // only include async files or non-js, non-css assets
-      if (clientManifest.async.indexOf(file) > -1 || !(/\.(js|css)($|\?)/.test(file))) {
+      if (
+        file &&
+        (clientManifest.async.indexOf(file) > -1 ||
+          !/\.(js|css)($|\?)/.test(file))
+      ) {
         files.push(file);
       }
     });
@@ -8874,7 +8881,7 @@ var TemplateRenderer = function TemplateRenderer (options) {
   this.inject = options.inject !== false;
   // if no template option is provided, the renderer is created
   // as a utility object for rendering assets like preload links and scripts.
-    
+
   var template = options.template;
   this.parsedTemplate = template
     ? typeof template === 'string'
@@ -9596,6 +9603,100 @@ function createBundleRendererCreator (
 
 /*  */
 
+var PassThrough$1 = require('stream').PassThrough;
+
+function createSharedBundleRendererCreator (
+  createRenderer
+) {
+  return function createBundleRenderer (
+    bundleRender,
+    rendererOptions
+  ) {
+    if ( rendererOptions === void 0 ) rendererOptions = {};
+
+
+    var renderer = createRenderer(rendererOptions);
+
+    var run = function (userContext) {
+      if ( userContext === void 0 ) userContext = {};
+
+      userContext._registeredComponents = new Set();
+      global['__VUE_SSR_CONTEXT__'] = {};
+      console.log(global['__VUE_SSR_CONTEXT__']);
+      return bundleRender(userContext)
+    };
+
+    return {
+      renderToString: function (context, cb) {
+        var assign;
+
+        if (typeof context === 'function') {
+          cb = context;
+          context = {};
+        }
+
+        var promise;
+        if (!cb) {
+          ((assign = createPromiseCallback(), promise = assign.promise, cb = assign.cb));
+        }
+        var p = run(context);
+        p.catch(function (err) {
+          // rewriteErrorTrace(err, maps)
+          cb(err);
+        }).then(function (app) {
+          if (app) {
+            renderer.renderToString(app, context, function (err, res) {
+              // rewriteErrorTrace(err, maps)
+              cb(err, res);
+            });
+          } else {
+            cb(new Error('No app returned'));
+          }
+        });
+
+        return promise
+      },
+
+      renderToStream: function (context) {
+        var res = new PassThrough$1();
+        run(context).catch(function (err) {
+          // rewriteErrorTrace(err, maps)
+          // avoid emitting synchronously before user can
+          // attach error listener
+          process.nextTick(function () {
+            res.emit('error', err);
+          });
+        }).then(function (app) {
+          if (app) {
+            var renderStream = renderer.renderToStream(app, context);
+
+            renderStream.on('error', function (err) {
+              // rewriteErrorTrace(err, maps)
+              res.emit('error', err);
+            });
+
+            // relay HTMLStream special events
+            if (rendererOptions && rendererOptions.template) {
+              renderStream.on('beforeStart', function () {
+                res.emit('beforeStart');
+              });
+              renderStream.on('beforeEnd', function () {
+                res.emit('beforeEnd');
+              });
+            }
+
+            renderStream.pipe(res);
+          }
+        });
+
+        return res
+      }
+    }
+  }
+}
+
+/*  */
+
 process.env.VUE_ENV = 'server';
 
 function createRenderer$1 (options) {
@@ -9612,6 +9713,8 @@ function createRenderer$1 (options) {
 }
 
 var createBundleRenderer = createBundleRendererCreator(createRenderer$1);
+var createSharedBundleRenderer = createSharedBundleRendererCreator(createRenderer$1);
 
 exports.createRenderer = createRenderer$1;
 exports.createBundleRenderer = createBundleRenderer;
+exports.createSharedBundleRenderer = createSharedBundleRenderer;
