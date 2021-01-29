@@ -9,6 +9,7 @@ import { isUnaryTag, canBeLeftOpenTag } from './compiler/util'
 
 import { createRenderer as _createRenderer } from 'server/create-renderer'
 import { createBundleRendererCreator } from 'server/bundle-renderer/create-bundle-renderer'
+import { createSharedBundleRendererCreator } from 'server/bundle-renderer/create-shared-bundle-renderer'
 
 export function createRenderer (options?: Object = {}): {
   renderToString: Function,
@@ -25,3 +26,4 @@ export function createRenderer (options?: Object = {}): {
 }
 
 export const createBundleRenderer = createBundleRendererCreator(createRenderer)
+export const createSharedBundleRenderer = createSharedBundleRendererCreator(createRenderer)
