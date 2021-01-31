@@ -42,14 +42,10 @@ var onEmit = function (compiler, name, hook) {
 var VueSSRServerPlugin = function VueSSRServerPlugin (options) {
   if ( options === void 0 ) options = {};
 
-  this.options = Object.assign({
-    filename: 'vue-ssr-server-bundle.json'
-  }, options);
+  this.options = options;
 };
 
 VueSSRServerPlugin.prototype.apply = function apply (compiler) {
-    var this$1 = this;
-
   validate(compiler);
 
   onEmit(compiler, 'vue-server-plugin', function (compilation, cb) {
@@ -77,30 +73,6 @@ VueSSRServerPlugin.prototype.apply = function apply (compiler) {
         ("Entry \"" + entryName + "\" not found. Did you specify the correct entry option?")
       )
     }
-
-    var bundle = {
-      entry: entry,
-      files: {},
-      maps: {}
-    };
-
-    stats.assets.forEach(function (asset) {
-      if (isJS(asset.name)) {
-        bundle.files[asset.name] = compilation.assets[asset.name].source();
-      } else if (asset.name.match(/\.js\.map$/)) {
-        bundle.maps[asset.name.replace(/\.map$/, '')] = JSON.parse(compilation.assets[asset.name].source());
-      }
-      // do not emit anything else for server
-      delete compilation.assets[asset.name];
-    });
-
-    var json = JSON.stringify(bundle, null, 2);
-    var filename = this$1.options.filename;
-
-    compilation.assets[filename] = {
-      source: function () { return json; },
-      size: function () { return json.length; }
-    };
 
     cb();
   });

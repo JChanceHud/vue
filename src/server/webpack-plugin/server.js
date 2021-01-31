@@ -2,9 +2,7 @@ import { validate, isJS, onEmit } from './util'
 
 export default class VueSSRServerPlugin {
   constructor (options = {}) {
-    this.options = Object.assign({
-      filename: 'vue-ssr-server-bundle.json'
-    }, options)
+    this.options = options
   }
 
   apply (compiler) {
@@ -34,30 +32,6 @@ export default class VueSSRServerPlugin {
         throw new Error(
           `Entry "${entryName}" not found. Did you specify the correct entry option?`
         )
-      }
-
-      const bundle = {
-        entry,
-        files: {},
-        maps: {}
-      }
-
-      stats.assets.forEach(asset => {
-        if (isJS(asset.name)) {
-          bundle.files[asset.name] = compilation.assets[asset.name].source()
-        } else if (asset.name.match(/\.js\.map$/)) {
-          bundle.maps[asset.name.replace(/\.map$/, '')] = JSON.parse(compilation.assets[asset.name].source())
-        }
-        // do not emit anything else for server
-        delete compilation.assets[asset.name]
-      })
-
-      const json = JSON.stringify(bundle, null, 2)
-      const filename = this.options.filename
-
-      compilation.assets[filename] = {
-        source: () => json,
-        size: () => json.length
       }
 
       cb()
